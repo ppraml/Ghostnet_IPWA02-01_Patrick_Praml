@@ -1,0 +1,92 @@
+﻿<!DOCTYPE html>
+<html lang="de" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Ghost Net Fishing - Shea Sephard (Programm für Fallstudie von Patrick Praml - IU14080751)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root{--blue:#2563eb;--blue2:#1e40af;--bg:#ffffff;--text:#0f172a}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    header{background:linear-gradient(90deg,var(--blue),var(--blue2));color:#fff;padding:1.2rem}
+    .wrap{max-width:1100px;margin:0 auto;padding:0 1rem}
+    .brand{font-weight:800;letter-spacing:.2px}
+    nav a{color:#eaf2ff;text-decoration:none;margin-right:1rem}
+    nav form{display:inline}
+    .logout-btn{background:none;border:none;color:#eaf2ff;text-decoration:underline;cursor:pointer;font:inherit}
+    main{padding:1.25rem 0}
+    .hero{background:#f3f7ff;border:1px solid #dbe7ff;border-radius:14px;padding:1rem 1.2rem;margin-bottom:1rem}
+    .hero h1{margin:.2rem 0 .4rem;font-size:1.25rem;color:var(--blue2)}
+    #map{height:520px;border:1px solid #e6eefc;border-radius:14px}
+    .toolbar{margin:.8rem 0}
+    .toolbar a{color:var(--blue);text-decoration:none;margin-right:.8rem}
+    .badge{display:inline-block;background:#ecf2ff;border:1px solid #d5e3ff;color:#163f9d;border-radius:999px;padding:.15rem .55rem;font-size:.9rem}
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap" style="display:flex;align-items:center;gap:1rem;justify-content:space-between;flex-wrap:wrap">
+    <div class="brand">Ghost Net Fishing · Shea Sephard</div>
+    <nav>
+      <a th:href="@{/}">Start</a>
+      <a th:href="@{/report}">Geisternetz melden</a>
+      <a th:href="@{/nets}">Übersicht</a>
+      ·
+      <span class="badge" th:text="${#authentication?.name}">user</span>
+      ·
+      <form th:action="@{/logout}" method="post" style="display:inline">
+        <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <button class="logout-btn" type="submit">Logout</button>
+      </form>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <h1>Ghost Net Fishing - Shea Sephard <small style="font-weight:400">- Programm für Fallstudie von Patrick Praml – IU14080751</small></h1>
+    <p style="margin:.2rem 0 0">Interaktive Karte aller gemeldeten Geisternetze. Die Liste findest du in der <a th:href="@{/nets}" style="color:var(--blue);font-weight:600">Übersicht</a>.</p>
+  </section>
+
+  <div id="map"></div>
+
+  <div class="toolbar">
+    <a th:href="@{/report}">Neue Meldung erstellen</a>
+    <a th:href="@{/nets}">Zur Übersicht</a>
+  </div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script th:inline="javascript">
+  const nets = /*[[${nets}]]*/ [];
+  const points = nets.map(n => ({
+    id:n.id, lat:n.lat, lon:n.lon, status:n.status, size:n.sizeEstimate,
+    reporterName: n.reporterName, reporterPhone: n.reporterPhone
+  })).filter(p => typeof p.lat==='number' && typeof p.lon==='number');
+
+  const center = points.length>0 ? [points[0].lat, points[0].lon] : [51.163,10.447];
+  const map = L.map('map').setView(center, points.length>0?6:5);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:18, attribution:'&copy; OpenStreetMap'
+  }).addTo(map);
+
+  const bounds=[];
+  points.forEach(p=>{
+    const name = (p.reporterName && p.reporterName.trim().length>0) ? p.reporterName : 'Anonym';
+    const phone = (p.reporterPhone && p.reporterPhone.trim().length>0) ? p.reporterPhone : '—';
+    const popup = `
+      <b>Netz #${p.id}</b><br/>
+      Status: ${p.status}<br/>
+      Größe: ${p.size ?? '–'}<br/>
+      Meldung: ${name} (${phone})<br/>
+      <a href="/nets">Zur Übersicht</a>
+    `;
+    L.marker([p.lat,p.lon]).addTo(map).bindPopup(popup);
+    bounds.push([p.lat,p.lon]);
+  });
+  if(bounds.length>1){ map.fitBounds(bounds,{padding:[20,20]}); }
+</script>
+</body>
+</html>

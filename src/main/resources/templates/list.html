@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Geisternetze – Liste</title>
+    <style>
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px; border-bottom: 1px solid #ddd; text-align: left; }
+        .badge { padding: 3px 8px; border-radius: 8px; font-size: 12px; }
+        .bg-reported  { background: #e0e7ff; }
+        .bg-assigned  { background: #fff7cc; }
+        .bg-recovered { background: #d1fadf; }
+        .actions form { display: inline; margin-right: 6px; }
+        .alert { background: #e6ffed; border: 1px solid #bbf7d0; padding: 10px; border-radius: 6px; margin-bottom: 12px; }
+        small.muted { color: #777; }
+    </style>
+</head>
+<body>
+
+<div th:if="${msg}" class="alert" th:text="${msg}">Aktion erfolgreich</div>
+
+<h1>Geisternetze – Liste</h1>
+
+<table>
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Koordinaten</th>
+        <th>Status</th>
+        <th>Aktionen</th>
+        <th>Zuweisung (Bergung)</th>
+        <th>Geborgen/Verschollen</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    <tr th:each="net : ${nets}">
+        <td th:text="${net.id}">1</td>
+
+        <td>
+            <span th:text="${net.lat}">0.0</span>,
+            <span th:text="${net.lon}">0.0</span>
+        </td>
+
+        <td>
+            <span class="badge"
+                  th:text="${net.status}"
+                  th:classappend="${net.status == T(de.pp.ipwa02.ghostnet.NetStatus).REPORTED ? ' bg-reported' : (net.status == T(de.pp.ipwa02.ghostnet.NetStatus).ASSIGNED ? ' bg-assigned' : ' bg-recovered')}">
+                REPORTED
+            </span>
+        </td>
+
+        <td class="actions">
+            <div th:if="${net.status == T(de.pp.ipwa02.ghostnet.NetStatus).REPORTED}">
+                <form th:action="@{|/nets/${net.id}/assign|}" method="post">
+                    <select name="salvorId"
+                            th:if="${people != null and #lists.size(people) > 0}"
+                            required>
+                        <option value="" selected>– Bergung auswählen –</option>
+                        <option th:each="p : ${people}"
+                                th:value="${p.id}"
+                                th:text="${p.name}">Bergung</option>
+                    </select>
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <button type="submit">Zuweisen</button>
+                </form>
+            </div>
+
+            <div th:if="${net.status == T(de.pp.ipwa02.ghostnet.NetStatus).ASSIGNED}">
+                <form th:action="@{|/nets/${net.id}/recover|}" method="post">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <button type="submit">Als geborgen markieren</button>
+                </form>
+            </div>
+
+            <div th:if="${net.status == T(de.pp.ipwa02.ghostnet.NetStatus).RECOVERED}">
+                <span>—</span>
+            </div>
+        </td>
+
+        <td>
+            <div th:if="${net.claimedAt != null}">
+                zugewiesen am:
+                <span th:text="${net.claimedAt}">datum</span><br/>
+                <span th:if="${net.salvor != null}">
+                  Bergung: <span th:text="${net.salvor.name}">person</span>
+                </span>
+            </div>
+            <div th:if="${net.claimedAt == null}">
+                <small class="muted">noch nicht zugewiesen</small>
+            </div>
+        </td>
+
+        <td>
+            <div th:if="${net.recoveredAt != null}">
+                geborgen am:
+                <span th:text="${net.recoveredAt}">datum</span>
+            </div>
+
+            <div th:if="${net.recoveredAt == null and net.status.name() != 'LOST'}">
+                <form th:action="@{|/nets/${net.id}/lost|}" method="post" style="display:inline">
+                    <input type="text" name="name" placeholder="Ihr Name" required>
+                    <input type="tel"  name="phone" placeholder="Telefon" required>
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <button type="submit">Als verschollen melden</button>
+                </form>
+            </div>
+
+            <div th:if="${net.status.name() == 'LOST'}">
+                verschollen am <span th:text="${net.lostAt}">datum</span> ·
+                gemeldet von <span th:text="${net.lostByName}">name</span>
+                (<span th:text="${net.lostByPhone}">phone</span>)
+            </div>
+        </td>
+    </tr>
+    </tbody>
+</table>
+
+</body>
+</html>

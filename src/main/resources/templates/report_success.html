@@ -1,0 +1,22 @@
+﻿<!DOCTYPE html>
+<html lang="de" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Netz gemeldet</title>
+</head>
+<body>
+<h1>Danke, Netz wurde gemeldet!</h1>
+
+<p>
+  ID: <span th:text="${net.id}">1</span><br/>
+  Status: <span th:text="${net.status}">REPORTED</span><br/>
+  Gemeldet am: <span th:text="${net.reportedAt}">—</span>
+</p>
+
+<p>
+  <a th:href="@{/nets}">Zur Liste</a> |
+  <a th:href="@{/report}">Noch eins melden</a> |
+  <a th:href="@{/}">Home</a>
+</p>
+</body>
+</html>

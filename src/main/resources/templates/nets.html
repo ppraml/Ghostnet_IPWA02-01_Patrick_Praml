@@ -1,0 +1,187 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="https://www.thymeleaf.org/extras/spring-security" lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Geisternetze · Übersicht</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root{--blue:#2563eb;--blue2:#1e40af}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:2rem;background:#ffffff;color:#0f172a}
+    .topbar{display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+    .badge{padding:.1rem .5rem;border:1px solid #dbe7ff;background:#ecf2ff;border-radius:999px;font-size:.85rem;color:#163f9d}
+    .is-active{background:#dbe7ff;border-color:#c8dbff}
+    #map{height:360px;border:1px solid #e6eefc;border-radius:8px;margin:1rem 0}
+    table{border-collapse:collapse;width:100%;background:#fff}
+    th,td{border:1px solid #e6eefc;padding:.5rem;text-align:left;vertical-align:top}
+    th{background:#f3f7ff}
+    .pill{padding:.15rem .5rem;border-radius:999px;border:1px solid #e6eefc;background:#f7fbff;font-size:.9rem}
+    form.inline{display:inline}
+    small.muted{color:#666}
+    .row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+    input.smol, select.smol{width:12rem;padding:.35rem;border:1px solid #c9dbff;border-radius:6px;background:#fff}
+    .flash{background:#e6ffed;border:1px solid #bbf7d0;padding:.75rem;border-radius:6px;margin:.75rem 0}
+    .filters a{text-decoration:none;color:#0f172a}
+    .warn{background:#fff7e6;border:1px solid #ffd18a;padding:.75rem;border-radius:6px;margin:.75rem 0}
+    button[disabled]{opacity:.5;cursor:not-allowed}
+    .navlinks a, .logout-btn{margin-right:.5rem;color:var(--blue);background:none;border:none;padding:0;cursor:pointer;font:inherit;text-decoration:underline}
+  </style>
+</head>
+<body>
+  <h1>Geisternetze – Übersicht</h1>
+  <div class="topbar">
+    <div class="filters">
+      <a th:href="@{/nets}" class="badge" th:classappend="${filter}=='all' ? ' is-active'">Alle</a>
+      <a th:href="@{/nets(filter='open')}" class="badge" th:classappend="${filter}=='open' ? ' is-active'">Nur offene</a>
+    </div>
+    <div class="counts" style="display:flex;gap:.5rem">
+      <span class="badge">Gemeldet: <b th:text="${cntReported}">0</b></span>
+      <span class="badge">Zugewiesen: <b th:text="${cntAssigned}">0</b></span>
+      <span class="badge">Geborgen: <b th:text="${cntRecovered}">0</b></span>
+    </div>
+    <div class="navlinks" style="margin-left:auto">
+      <a th:href="@{/}">⟵ Start</a>
+      <a th:href="@{/report}">Neues Netz melden</a>
+      · <span sec:authentication="name" class="badge"></span>
+      ·
+      <form th:action="@{/logout}" method="post" class="inline">
+        <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <button type="submit" class="logout-btn">Logout</button>
+      </form>
+    </div>
+  </div>
+
+  <div th:if="${msg}" class="flash" th:text="${msg}"></div>
+  <div th:if="${!hasSalvors}" class="warn" sec:authorize="hasAnyRole('SALVOR','ADMIN')">
+    Hinweis: Es ist noch <b>keine bergende Person</b> in der Datenbank hinterlegt.
+    Sie können trotzdem die Schnellzuweisung „Team 1/2“ verwenden – Teams werden bei Bedarf automatisch angelegt.
+  </div>
+
+  <div id="map"></div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th><th>Koordinate</th><th>Größe</th><th>Status</th>
+        <th>Meldende Person</th>
+        <th>Aktion</th><th>Zuweisung (Bergung)</th><th>Geborgen/Verschollen</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr th:each="net : ${nets}">
+        <td th:text="${net.id}">1</td>
+        <td><span th:text="${net.lat}">0</span>, <span th:text="${net.lon}">0</span></td>
+        <td th:text="${net.sizeEstimate} ?: '–'">–</td>
+        <td><span class="pill" th:text="${net.status}">REPORTED</span></td>
+
+        <!-- Meldende Person: „Anonym“ wenn kein Name -->
+        <td>
+          <div>
+            <div>
+              <small>Name:</small>
+              <span th:text="${(net.reporterName != null and #strings.length(#strings.trim(net.reporterName)) > 0) ? net.reporterName : 'Anonym'}">Anonym</span>
+            </div>
+            <div>
+              <small>Telefon:</small>
+              <span th:text="${(net.reporterPhone != null and #strings.length(#strings.trim(net.reporterPhone)) > 0) ? net.reporterPhone : '—'}">—</span>
+            </div>
+          </div>
+        </td>
+
+        <td>
+          <!-- GEMELDET: Zuweisung (nur SALVOR/ADMIN) -->
+          <div th:if="${net.status.name() == 'REPORTED'}" sec:authorize="hasAnyRole('SALVOR','ADMIN')">
+            <form th:action="@{|/nets/${net.id}/assign|}" method="post" class="inline" style="margin-bottom:.25rem">
+              <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+              <select name="salvorId" class="smol" th:if="${hasSalvors}">
+                <option value="" selected>– Bergung auswählen –</option>
+                <option th:each="p : ${people}" th:value="${p.id}" th:text="${p.name}"></option>
+              </select>
+              <button type="submit" th:disabled="${!hasSalvors}">Zuweisen</button>
+            </form>
+            <div class="row">
+              <form th:action="@{|/nets/${net.id}/assign|}" method="post" class="inline">
+                <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="team" value="1"/>
+                <button type="submit">→ Team 1</button>
+              </form>
+              <form th:action="@{|/nets/${net.id}/assign|}" method="post" class="inline">
+                <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="team" value="2"/>
+                <button type="submit">→ Team 2</button>
+              </form>
+            </div>
+          </div>
+
+          <!-- ZUGEWIESEN: Geborgen (nur SALVOR/ADMIN) -->
+          <div th:if="${net.status.name() == 'ASSIGNED'}" sec:authorize="hasAnyRole('SALVOR','ADMIN')">
+            <form th:action="@{|/nets/${net.id}/recover|}" method="post" class="inline">
+              <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+              <button type="submit">Als geborgen markieren</button>
+            </form>
+          </div>
+
+          <!-- GEBORGEN: keine Aktion -->
+          <div th:if="${net.status.name() == 'RECOVERED'}"><span>—</span></div>
+        </td>
+
+        <td>
+          <div th:if="${net.claimedAt != null}">
+            <small>Zugewiesen am: <span th:text="${net.claimedAt}">datum</span></small><br/>
+            <small th:if="${net.salvor != null}">Bergung: <span th:text="${net.salvor.name}">person</span></small>
+          </div>
+          <div th:if="${net.claimedAt == null}"><small class="muted">noch nicht zugewiesen</small></div>
+        </td>
+
+        <td>
+          <div th:if="${net.recoveredAt != null}">
+            <small>Geborgen am: <span th:text="${net.recoveredAt}">datum</span></small>
+          </div>
+
+          <!-- Verschollen: NUR wenn Status ASSIGNED (und nicht Guest) -->
+          <div th:if="${net.status.name() == 'ASSIGNED'}"
+               class="row" style="margin-top:.25rem"
+               sec:authorize="hasAnyRole('REPORTER','SALVOR','ADMIN')">
+            <form th:action="@{|/nets/${net.id}/lost|}" method="post" class="inline row">
+              <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+              <input class="smol" type="text" name="name" placeholder="Ihr Name" required>
+              <input class="smol" type="tel"  name="phone" placeholder="Telefon" required>
+              <button type="submit">Als verschollen melden</button>
+            </form>
+          </div>
+
+          <div th:if="${net.status.name() == 'LOST'}">
+            <small>Verschollen am <span th:text="${net.lostAt}">datum</span> ·
+              gemeldet von <span th:text="${net.lostByName}">name</span>
+              (<span th:text="${net.lostByPhone}">phone</span>)
+            </small>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script th:inline="javascript">
+    const nets = /*[[${nets}]]*/ [];
+    const points = nets.map(n => ({
+      id:n.id, lat:n.lat, lon:n.lon, status:n.status, size:n.sizeEstimate,
+      reporterName:n.reporterName, reporterPhone:n.reporterPhone
+    })).filter(p => typeof p.lat==='number' && typeof p.lon==='number');
+
+    const center = points.length>0 ? [points[0].lat, points[0].lon] : [51.163,10.447];
+    const map = L.map('map').setView(center, points.length>0?6:5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'&copy; OpenStreetMap'}).addTo(map);
+
+    const bounds=[];
+    points.forEach(p=>{
+      const name = (p.reporterName && p.reporterName.trim().length>0) ? p.reporterName : 'Anonym';
+      const phone = (p.reporterPhone && p.reporterPhone.trim().length>0) ? p.reporterPhone : '—';
+      const pop = `<b>Netz #${p.id}</b><br/>Status: ${p.status}<br/>Größe: ${p.size ?? '–'}<br/>Meldung: ${name} (${phone})<br/><a href="/nets">Zur Übersicht</a>`;
+      L.marker([p.lat,p.lon]).addTo(map).bindPopup(pop);
+      bounds.push([p.lat,p.lon]);
+    });
+    if(bounds.length>1) map.fitBounds(bounds,{padding:[20,20]});
+  </script>
+</body>
+</html>
