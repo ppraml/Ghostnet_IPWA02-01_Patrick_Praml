@@ -36,9 +36,7 @@ build/
 target/
 !.mvn/wrapper/maven-wrapper.jar
 
-# IntelliJ / Eclipse / VSCode
-.idea/
-*.iml
+#Eclipse
 *.class
 *.log
 .DS_Store
